@@ -25,7 +25,9 @@ INSTRUCTIONS:
 
 1. Download the code to your favorite area:
 
-> git clone https://github.com/caredg/dat2root
+> git clone https://github.com/caredg/EstudioRayosCosmicos
+
+> cd dat2rootConverter
 
 2. Compile the code doing:
 
