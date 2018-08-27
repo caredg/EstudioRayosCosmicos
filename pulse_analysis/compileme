@@ -1,0 +1,10 @@
+#clean and compile analysis code without linking
+\rm PulseAnalysis.o
+g++ `root-config --cflags` -c PulseAnalysis.C
+
+#clean and compile steering code without linking
+\rm runPulseAnalysis.o
+g++ `root-config --cflags` -c runPulseAnalysis.C
+
+#link everything together agains ROOT libraries
+g++ PulseAnalysis.o runPulseAnalysis.o `root-config --libs` -o runPulseAnalysis
