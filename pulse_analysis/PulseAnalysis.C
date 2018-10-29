@@ -26,6 +26,11 @@
 #include "PulseAnalysis.h"
 #include <TH2.h>
 #include <TStyle.h>
+#include <iostream>
+#include <fstream>
+#include <math.h>
+#include "TVirtualFFT.h"
+
 
 
 void PulseAnalysis::Begin(TTree * /*tree*/)
@@ -50,7 +55,7 @@ void PulseAnalysis::SlaveBegin(TTree * /*tree*/)
    //object you need
    myfile = new TFile("eqhistos.root","RECREATE");
 
-   //This is to fill the total charge 
+   //This is to fill the total charge as a simple example
    h_totcharge = new TH1F("h_totcharge", "Integrated Charge", 900, 0, 9000);
 
    //The first gps time in our data was 1460257200 and the last pulse
@@ -58,10 +63,48 @@ void PulseAnalysis::SlaveBegin(TTree * /*tree*/)
    //it happend at 1461023999+(25e-9)(39794704).  
    //Therefore we have 1461023999.9948676 - 1460257200 = 766799.998676
    //seconds of data.
-   //We can plot an unnormalized rate vs. time rougly in bins of one hour.
-   //This can of course be changed in order to do research.
-   h_urate = new TH1D("h_urate", "Unnormalized Rate of Cosmic Rays - Chimbito WCD",213, 0, 766800);
+
+   //Let's plot in bins of 5 minutes:
+//   long int nbin = 2556;
+   //or in bins of 1 minute:
+   long int nbin = 12780;
+
+   //start flux histograms from zero (which is the time we started
+   //collecting data):
+   long int down = 0;
+
+   //until the highest second we have data for, which in our case is
+   //766800.  This corresponds to about 8.875 days of data.
+   long int up = 766800;
+
+   //let's define the histogram for uncorrected and unnormalized flux
+   h_urate = new TH1D("h_urate", "Unnormalized Rate of Cosmic Rays - Chimbito WCD",nbin, down, up);
    
+   //In order to correct the for pressure effects, we need to store the per
+   //minute information of pressure.  We obtained this information from an 
+   //external source (specific weather station around the place where data
+   //was taken).  The values of time are stored in the file
+   //time.lt and the corresponding values of pressure in the file
+   //presion.lst
+
+   //We need to open those files and store the information.
+   //We do that and dump the information in vector containers
+
+   //for file containing pressure info
+   ifstream fileP; 
+   //for file containing the time at which pressure was taken
+   //note that the actual times are listed in the "time2.lst" file
+   //we start at the same time we started taking data with the WCD
+   ifstream tFile; 
+
+   //let's open those files
+   fileP.open("presion.lst");
+   tFile.open("time.lst");
+
+   //
+
+   
+
 }
 
 Bool_t PulseAnalysis::Process(Long64_t entry)
@@ -93,9 +136,24 @@ Bool_t PulseAnalysis::Process(Long64_t entry)
 
     //Need to get the entry as indicated in the instructions above
     GetEntry(entry);
+
     //Fill a histogram with the total charge
     h_totcharge->Fill(channel1_total_charge);
-    h_urate->Fill(time-1460257200);
+
+   //According to the note in the SlaveBegin function, let's normalize
+   //(rescale) the time information
+    Double_t ntime = time-1460257200;
+
+    //The uncorrected flux histogram would be
+    h_urate->Fill(ntime);
+
+    //However, we do need to correct for atmospheric influence, specially
+    //pressure.
+
+    //initialize output histograms for transform
+    h_magFFT = 0;
+    h_phaseFFT = 0;
+
     
     
     return kTRUE;
@@ -119,8 +177,23 @@ void PulseAnalysis::SlaveTerminate()
     //c_totcharge->Print("h_totcharge.png");
     h_urate->GetXaxis()->SetTitle("Unnormalized time");
     h_urate->GetYaxis()->SetTitle("Events/hour");
+    
+    //The implementation of a Fast Fourier transform (FFT) using the 
+    //standard FFTW library (through ROOT) is shown below
+    TVirtualFFT::SetTransform(0);
+    //compute the transform and look at the magnitude
+    h_magFFT = h_urate->FFT(h_magFFT, "MAG");
+    h_magFFT->SetTitle("Magnitude of the transform");
+    //look at the phase
+    h_phaseFFT = h_urate->FFT(h_phaseFFT, "PH");
+    h_phaseFFT->SetTitle("Phase of the transform");
+
+    //Write out histograms
     h_totcharge->Write();
     h_urate->Write();
+    h_magFFT->Write();
+    h_phaseFFT->Write();
+    
     
     myfile->Close();
 

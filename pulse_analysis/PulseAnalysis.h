@@ -80,6 +80,12 @@ public :
    int eventsCounter;
    TH1F* h_totcharge;
    TH1D* h_urate;
+   //for the magnitude of FFT
+   TH1* h_magFFT;
+   //for the phase of FFT
+   TH1* h_phaseFFT;
+   
+   
    
    //TH2D* h2_rate;
    
