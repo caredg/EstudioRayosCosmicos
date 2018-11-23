@@ -75,11 +75,22 @@ void PulseAnalysis::SlaveBegin(TTree * /*tree*/)
 
    //until the highest second we have data for, which in our case is
    //766800.  This corresponds to about 8.875 days of data.
-   long int up = 766800;
+   //long int up = 766800;
+   //this number is after UTC correction (1461023999-1460275200)
+   //This is because we substract the last trigger from the first one
+   //at 8h00 on april 10th of 2016 and add the last second.
+   long int up = 748799+1;
+   
 
    //let's define the histogram for uncorrected and unnormalized flux
-   h_urate = new TH1D("h_urate", "Unnormalized Rate of Cosmic Rays - Chimbito WCD",nbin, down, up);
+   h_urate = new TH1D("h_urate", "Cosmic Ray Flux - Chimbito WCD",nbin, down, up);
+   h_cleanflux = new TH1F("h_cleanflux", "Cosmic Ray Flux (afterpulse noise cleaned) - Chimbito WCD",nbin, down, up);
+
+   chargepeak = new TH1F("chargepeak", "Charge/Peak",1000,-20,100);
+   chargepeakclean = new TH1F("chargepeakclean", "Charge/Peak Clean",1000,-20,100);
+   fluxVSpressure = new TH2D("fluxVSpressure", "Flux vs. Pressure",20,720,740,5000,5000,10000);
    
+
    //In order to correct the for pressure effects, we need to store the per
    //minute information of pressure.  We obtained this information from an 
    //external source (specific weather station around the place where data
@@ -90,18 +101,8 @@ void PulseAnalysis::SlaveBegin(TTree * /*tree*/)
    //We need to open those files and store the information.
    //We do that and dump the information in vector containers
 
-   //for file containing pressure info
-   ifstream fileP; 
-   //for file containing the time at which pressure was taken
-   //note that the actual times are listed in the "time2.lst" file
-   //we start at the same time we started taking data with the WCD
-   ifstream tFile; 
-
-   //let's open those files
-   fileP.open("presion.lst");
-   tFile.open("time.lst");
-
-   //
+   
+   
 
    
 
@@ -142,14 +143,21 @@ Bool_t PulseAnalysis::Process(Long64_t entry)
 
    //According to the note in the SlaveBegin function, let's normalize
    //(rescale) the time information
-    Double_t ntime = time-1460257200;
+    //Double_t ntime = time-1460257200;
+    Double_t ntime = time-1460275200;
 
     //The uncorrected flux histogram would be
     h_urate->Fill(ntime);
-
-    //However, we do need to correct for atmospheric influence, specially
-    //pressure.
-
+    chargepeak->Fill((float)channel1_charge/(channel1_peak-baseline));
+    if(trigger==1){
+        if(channel1_trace[3]>63){
+            chargepeakclean->Fill((float)channel1_charge/(channel1_peak-baseline));
+            //plot a cleaned flux
+            h_cleanflux->Fill(ntime);
+            
+        }
+    }
+   
     //initialize output histograms for transform
     h_magFFT = 0;
     h_phaseFFT = 0;
@@ -175,7 +183,7 @@ void PulseAnalysis::SlaveTerminate()
     //h_totcharge->Draw();
     //Print an image
     //c_totcharge->Print("h_totcharge.png");
-    h_urate->GetXaxis()->SetTitle("Unnormalized time");
+    h_urate->GetXaxis()->SetTitle("Uncorrected particle flux");
     h_urate->GetYaxis()->SetTitle("Events/hour");
     
     //The implementation of a Fast Fourier transform (FFT) using the 
@@ -188,13 +196,63 @@ void PulseAnalysis::SlaveTerminate()
     h_phaseFFT = h_urate->FFT(h_phaseFFT, "PH");
     h_phaseFFT->SetTitle("Phase of the transform");
 
+ //However, we do need to correct for atmospheric influence, specially
+    //pressure.
+//for file containing pressure info
+   ifstream fileP; 
+   //for file containing the time at which pressure was taken
+   //note that the actual times are listed in the "time2.lst" file
+   //we start at the same time we started taking data with the WCD
+   ifstream tFile; 
+   double value;
+   //let's open those files
+   fileP.open("presion.lst");
+   tFile.open("time.lst");
+   while ( fileP >> value ) {
+       presion.push_back(value);
+   }
+   while(tFile >> value){
+       minutos.push_back(value);
+   }
+
+    int nbins = h_cleanflux->GetNbinsX();
+    cout<<nbins<<endl;
+    float thecon=0;
+    for(int thebin = 0;thebin<nbins+1;thebin++){
+        thecon = h_cleanflux->GetBinContent(thebin);
+        //cout<<thecon<<endl;
+        fluxVSpressure->Fill(presion[thebin],thecon);
+    }
+
+
     //Write out histograms
     h_totcharge->Write();
-    h_urate->Write();
+    h_cleanflux->Write();
+    chargepeak->Write();
+    chargepeakclean->Write();
     h_magFFT->Write();
     h_phaseFFT->Write();
+    fluxVSpressure->Write();
+    //h_pressure->Write();
+    h_urate->Write();
+    //beutify plot
+   //  h_urate->SetMarkerColor(4);
+//     h_urate->SetLineColor(4);
+//     h_urate->SetMarkerSize(0.1);
+//     h_urate->SetMarkerStyle(kFullCircle);
+//     h_urate->GetYaxis()->SetTitle("Particles (m^{-2} s^{-1})");
+//     h_urate->GetYaxis()->CenterTitle();
     
-    
+   //  while(c < nbin){ 
+//         string r = "April " + to_string(dia);    
+//         const char* s = r.c_str();
+//         if(c%((nbin/9))==0){
+//             h_time->GetXaxis()->SetBinLabel(c+1, s); dia++;}
+//         if(c*(766800/nbin)==576000){
+//             h_time->GetXaxis()->SetBinLabel(c,"Earthquake");}
+//         c++;
+// 	}  
+
     myfile->Close();
 
     cout<<"Done slave-terminating...."<<endl;

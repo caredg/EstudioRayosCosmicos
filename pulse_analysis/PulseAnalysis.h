@@ -80,11 +80,19 @@ public :
    int eventsCounter;
    TH1F* h_totcharge;
    TH1D* h_urate;
+   TH1F* h_cleanflux;
+   TH1F* chargepeak;
+   TH1F* chargepeakclean;
+   TH1F* h_pressure;
+   TH2D* fluxVSpressure;
+   float baseline = 50;
+   vector<double> presion;
+   vector<double> minutos;
    //for the magnitude of FFT
    TH1* h_magFFT;
    //for the phase of FFT
    TH1* h_phaseFFT;
-   
+   int j;//para la correccion de presion
    
    
    //TH2D* h2_rate;
